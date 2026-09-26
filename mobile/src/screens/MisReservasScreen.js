@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, FlatList, Image, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { guardarReservaLocal, obtenerTodasReservasLocales } from '../database/sqlite';
 import { sincronizarConBackend } from '../api/sync';
+import { API_URL } from '../api/config';
 import { colors } from '../theme';
 
 export default function MisReservasScreen({ route, navigation }) {
-  const { user } = route.params;
+  const { user, token } = route.params;
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
 
@@ -13,18 +14,29 @@ export default function MisReservasScreen({ route, navigation }) {
     setCargando(true);
     try {
       const locales = await obtenerTodasReservasLocales();
-      setReservas(locales.filter((reserva) => reserva.usuario_id === user.id));
-      sincronizarConBackend().then(async (sincronizado) => {
-        if (!sincronizado) return;
-        const actualizadas = await obtenerTodasReservasLocales();
-        setReservas(actualizadas.filter((reserva) => reserva.usuario_id === user.id));
-      }).catch((error) => console.warn('No se pudieron sincronizar las reservas:', error.message));
+      const localesDelUsuario = locales.filter((reserva) => reserva.usuario_id === user.id);
+      if (!token || token === 'offline') {
+        setReservas(localesDelUsuario);
+        return;
+      }
+
+      await sincronizarConBackend();
+      const response = await fetch(`${API_URL}/reservas`, { headers: { Authorization: `Bearer ${token}` } });
+      const resultado = await response.json();
+      if (!response.ok) throw new Error(resultado.mensaje || 'No se pudieron cargar tus reservas.');
+      const pendientes = (await obtenerTodasReservasLocales())
+        .filter((reserva) => reserva.usuario_id === user.id && !reserva.sincronizado);
+      const reservasPorId = new Map(pendientes.map((reserva) => [String(reserva.id), reserva]));
+      resultado.forEach((reserva) => reservasPorId.set(String(reserva.id), reserva));
+      setReservas([...reservasPorId.values()].sort((a, b) => `${a.fecha} ${a.hora}`.localeCompare(`${b.fecha} ${b.hora}`)));
     } catch (error) {
       console.error('No se pudieron leer las reservas:', error);
+      const locales = await obtenerTodasReservasLocales();
+      setReservas(locales.filter((reserva) => reserva.usuario_id === user.id));
     } finally {
       setCargando(false);
     }
-  }, [user.id]);
+  }, [user.id, token]);
 
   useEffect(() => { cargarReservas(); }, [cargarReservas]);
 
@@ -52,7 +64,7 @@ export default function MisReservasScreen({ route, navigation }) {
         onRefresh={cargarReservas}
         ListHeaderComponent={<>
           <View style={styles.header}><View><Text style={styles.kicker}>RESTAURANTE Z'eloura</Text><Text style={styles.title}>Mis mesas</Text></View><Text style={styles.counter}>{reservas.length} RESERVAS</Text></View>
-          <Pressable style={styles.newReservation} onPress={() => navigation.navigate('AgendarReserva', { user })}><Text style={styles.newReservationText}>+ Reservar una nueva mesa</Text><Text style={styles.newReservationArrow}>→</Text></Pressable>
+          <Pressable style={styles.newReservation} onPress={() => navigation.navigate('AgendarReserva', { user, token })}><Text style={styles.newReservationText}>+ Reservar una nueva mesa</Text><Text style={styles.newReservationArrow}>→</Text></Pressable>
         </>}
         ListEmptyComponent={!cargando ? <View style={styles.empty}><Text style={styles.emptyTitle}>Aún no tienes reservas</Text><Text style={styles.emptyText}>Tu próxima experiencia comienza con una mesa.</Text></View> : null}
         renderItem={({ item }) => <ReservationCard reserva={item} onCancel={() => cancelarReserva(item)} />}

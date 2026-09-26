@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as Crypto from 'expo-crypto';
 import { API_URL } from '../api/config';
+import { guardarSesionLocal } from '../database/sqlite';
 import { colors } from '../theme';
 
 export default function RegisterScreen({ navigation }) {
@@ -36,7 +38,14 @@ export default function RegisterScreen({ navigation }) {
         return;
       }
 
-      Alert.alert('Cuenta creada', 'Ya puedes ingresar y reservar tu mesa.', [{ text: 'Ingresar', onPress: () => navigation.replace('Login') }]);
+      if (!data.token || !data.user) {
+        Alert.alert('Backend sin actualizar', 'Publica los cambios del backend en Render antes de registrar una cuenta.');
+        return;
+      }
+
+      const passwordHash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
+      await guardarSesionLocal(data.user, data.token, passwordHash);
+      navigation.reset({ index: 0, routes: [{ name: 'Inicio', params: { user: data.user, token: data.token } }] });
     } catch (error) {
       console.error(error);
       Alert.alert('Sin conexión', `No se pudo conectar con el servidor en ${API_URL}. Comprueba que el teléfono esté en la misma red Wi-Fi y que el firewall permita el puerto 3000.`);

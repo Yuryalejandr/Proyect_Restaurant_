@@ -96,6 +96,7 @@ export default function HomeScreen({ navigation, route }) {
   const irAReserva = () => {
     navigation.navigate('AgendarReserva', {
       user,
+      token: route.params.token,
       platos: seleccionados.map((item) => item.nombre),
       fotoUri,
     });
@@ -151,7 +152,7 @@ export default function HomeScreen({ navigation, route }) {
             <Text style={styles.moduleTitle}>Tu foto</Text>
             <Text style={styles.moduleText}>{fotoUri ? 'Foto seleccionada' : 'Añade un recuerdo'}</Text>
           </Pressable>
-          <Pressable style={styles.module} onPress={() => navigation.navigate('MisReservas', { user })}>
+          <Pressable style={styles.module} onPress={() => navigation.navigate('MisReservas', { user, token: route.params.token })}>
             <Text style={styles.moduleNumber}>04</Text>
             <Text style={styles.moduleTitle}>Mis mesas</Text>
             <Text style={styles.moduleText}>Consulta tus reservas</Text>

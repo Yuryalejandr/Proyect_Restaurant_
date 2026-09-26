@@ -20,7 +20,7 @@ const zonas = ['Salón principal', 'Terraza', 'Bar'];
 const titulos = ['Fecha', 'Hora', 'Comensales', 'Detalles', 'Confirmar'];
 
 export default function AgendarReservaScreen({ route, navigation }) {
-  const { user, platos = [], fotoUri = null } = route.params;
+  const { user, token, platos = [], fotoUri = null } = route.params;
   const platosElegidos = Array.isArray(platos) ? platos : [];
   const resumenPlatos = platosElegidos.length ? platosElegidos.join(', ') : 'Sin productos seleccionados';
   const [paso, setPaso] = useState(1);
@@ -82,7 +82,7 @@ export default function AgendarReservaScreen({ route, navigation }) {
         sincronizado
           ? 'Tu mesa quedó guardada y sincronizada con el restaurante.'
           : 'Tu mesa quedó guardada en el dispositivo y se sincronizará cuando haya conexión.',
-        [{ text: 'Ver mis reservas', onPress: () => navigation.replace('MisReservas', { user }) }]
+        [{ text: 'Ver mis reservas', onPress: () => navigation.replace('MisReservas', { user, token }) }]
       );
     } catch (error) {
       console.error('No se pudo guardar la reserva:', error);

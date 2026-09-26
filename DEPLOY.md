@@ -17,9 +17,11 @@ El servicio usa un disco persistente en `/var/data`, por lo que SQLite conserva 
 
 ### MySQL online opcional
 
-SQLite sigue siendo el respaldo cuando `MYSQL_HOST` está vacío. Para usar una base MySQL online desde Render, define también `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER` y `MYSQL_PASSWORD` en las variables del servicio. Al reiniciar, el backend crea las tablas automáticamente y la APK conserva la misma URL.
+SQLite sigue siendo el respaldo cuando `MYSQL_HOST` está vacío. Para usar una base MySQL online desde Render, configura `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD` y `MYSQL_SSL` en **Environment** del servicio. El Blueprint declara esas variables y mantiene los valores sensibles fuera del repositorio. Al reiniciar, el backend crea las tablas que falten y la APK conserva la misma URL de API.
 
-MySQL Workbench puede conectarse a esa base usando los mismos datos. Una instalación de MySQL en `localhost` solo sirve para pruebas locales; Render no puede acceder a ella.
+El host tiene que ser una dirección de MySQL accesible desde Render, normalmente la de un proveedor de base de datos administrada. Una instalación en `localhost`, una IP privada de tu Wi-Fi o una computadora apagada no son accesibles desde Render. No abras el puerto 3306 a todo Internet; usa las reglas de red del proveedor y SSL cuando esté disponible. MySQL Workbench puede conectarse usando los mismos datos de conexión.
+
+La conexión a MySQL no importa automáticamente los registros que hoy estén en SQLite; tampoco copia datos entre dos servidores MySQL. Asegúrate de que las tablas de la base existente tengan el esquema compatible con `backend/config/db-mysql.js` y migra los datos aparte antes de cambiar `MYSQL_HOST`. La APK habla con el backend, no con MySQL directamente, por lo que no se deben incluir credenciales de la base en `mobile/.env`.
 
 ## APK conectada al backend público
 

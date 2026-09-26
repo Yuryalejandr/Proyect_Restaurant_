@@ -6,13 +6,22 @@ const SECRET = 'clave_secreta_restaurante';
 
 exports.register = (req, res) => {
   const { nombre, email, password, rol } = req.body;
+  if (typeof nombre !== 'string' || !nombre.trim() || typeof email !== 'string' || !email.trim() || typeof password !== 'string' || !password) {
+    return res.status(400).json({ error: 'Nombre, correo y contraseña son obligatorios.' });
+  }
+
   const userRol = 'cliente';
   const hashedPassword = bcrypt.hashSync(password, 8);
 
   const query = `INSERT INTO usuarios (nombre, email, password, rol) VALUES (?, ?, ?, ?)`;
-  db.run(query, [nombre, email, hashedPassword, userRol], function (err) {
+  db.run(query, [nombre.trim(), email.trim().toLowerCase(), hashedPassword, userRol], function (err) {
     if (err) return res.status(400).json({ error: 'El correo ya está registrado.' });
-    res.json({ message: 'Usuario registrado con éxito', userId: this.lastID });
+    const userId = this.lastID;
+    db.get('SELECT id, nombre, email, rol, foto_uri FROM usuarios WHERE id = ?', [userId], (selectError, user) => {
+      if (selectError || !user) return res.status(500).json({ error: 'La cuenta se creó, pero no se pudo iniciar sesión.' });
+      const token = jwt.sign({ id: user.id, rol: user.rol }, SECRET, { expiresIn: '24h' });
+      res.status(201).json({ message: 'Usuario registrado con éxito', token, user });
+    });
   });
 };
 

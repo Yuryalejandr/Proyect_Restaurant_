@@ -55,26 +55,30 @@ const guardarReserva = (reserva, callback) => {
   }
 
   const insertar = () => {
-    db.run(
-      `INSERT INTO reservas
-        (id, usuario_id, fecha, hora, personas, estado, sincronizado, plato, nota)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-        ON DUPLICATE KEY UPDATE
-          usuario_id = VALUES(usuario_id), fecha = VALUES(fecha), hora = VALUES(hora),
-          personas = VALUES(personas), estado = VALUES(estado), sincronizado = VALUES(sincronizado),
-          plato = VALUES(plato), nota = VALUES(nota)`,
-      [
-        reserva.id,
-        reserva.usuario_id,
-        reserva.fecha,
-        reserva.hora,
-        personas,
-        reserva.estado || 'pendiente',
-        reserva.plato || '',
-        reserva.nota || '',
-      ],
-      (err) => callback(err, { creado: !err })
-    );
+    const valores = [
+      reserva.usuario_id,
+      reserva.fecha,
+      reserva.hora,
+      personas,
+      reserva.estado || 'pendiente',
+      reserva.plato || '',
+      reserva.nota || '',
+    ];
+    db.get('SELECT id FROM reservas WHERE id = ?', [reserva.id], (selectError, existente) => {
+      if (selectError) return callback(selectError);
+      if (existente) {
+        return db.run(
+          'UPDATE reservas SET usuario_id = ?, fecha = ?, hora = ?, personas = ?, estado = ?, sincronizado = 1, plato = ?, nota = ? WHERE id = ?',
+          [...valores, reserva.id],
+          (err) => callback(err, { creado: !err })
+        );
+      }
+      db.run(
+        'INSERT INTO reservas (usuario_id, fecha, hora, personas, estado, sincronizado, plato, nota, id) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)',
+        [...valores, reserva.id],
+        (err) => callback(err, { creado: !err })
+      );
+    });
   };
 
   // Una cancelación libera cupo y siempre puede sincronizarse.
@@ -95,13 +99,12 @@ const guardarReserva = (reserva, callback) => {
 
 // Obtener reservas de un usuario o todas si es administrador.
 exports.getReservas = (req, res) => {
-  const { usuario_id, rol } = req.query;
   let query = 'SELECT * FROM reservas';
   const params = [];
 
-  if (rol !== 'admin') {
+  if (req.usuario.rol !== 'admin') {
     query += ' WHERE usuario_id = ?';
-    params.push(usuario_id);
+    params.push(req.usuario.id);
   }
   query += ' ORDER BY fecha ASC, hora ASC';
 
@@ -163,18 +166,20 @@ exports.actualizarMesasActivas = (req, res) => {
   if (!Number.isInteger(mesasActivas) || mesasActivas < 1 || mesasActivas > 100) {
     return res.status(400).json({ mensaje: 'Indica entre 1 y 100 mesas activas.' });
   }
-  db.run(
-    "INSERT INTO configuracion_restaurante (clave, valor) VALUES ('mesas_activas', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)",
-    [mesasActivas],
-    function (err) {
-    if (err) return res.status(500).json({ mensaje: err.message });
-    res.json({ mensaje: 'Mesas activas actualizadas.', mesasActivas });
-    }
-  );
+  db.get("SELECT clave FROM configuracion_restaurante WHERE clave = 'mesas_activas'", [], (selectError, fila) => {
+    if (selectError) return res.status(500).json({ mensaje: selectError.message });
+    const query = fila
+      ? "UPDATE configuracion_restaurante SET valor = ? WHERE clave = 'mesas_activas'"
+      : "INSERT INTO configuracion_restaurante (valor, clave) VALUES (?, 'mesas_activas')";
+    db.run(query, [mesasActivas], (err) => {
+      if (err) return res.status(500).json({ mensaje: err.message });
+      res.json({ mensaje: 'Mesas activas actualizadas.', mesasActivas });
+    });
+  });
 };
 
 exports.createReserva = (req, res) => {
-  guardarReserva(req.body, (err) => {
+  guardarReserva({ ...req.body, usuario_id: req.usuario.id }, (err) => {
     if (err) {
       const status = err.status || 500;
       return res.status(status).json({ mensaje: err.mensaje || err.message, disponibilidad: err.disponibilidad });
@@ -193,7 +198,7 @@ exports.syncReservas = (req, res) => {
   let index = 0;
   const siguiente = () => {
     if (index >= reservas.length) return res.json({ mensaje: 'Sincronización exitosa.' });
-    guardarReserva(reservas[index], (err) => {
+    guardarReserva({ ...reservas[index], usuario_id: req.usuario.id }, (err) => {
       if (err) {
         const status = err.status || 500;
         return res.status(status).json({ mensaje: err.mensaje || err.message, disponibilidad: err.disponibilidad });
