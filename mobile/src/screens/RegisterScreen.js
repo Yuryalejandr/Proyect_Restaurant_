@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Crypto from 'expo-crypto';
-import { API_URL } from '../api/config';
+import { API_URL, warmUpBackend } from '../api/config';
 import { guardarSesionLocal } from '../database/sqlite';
 import { colors } from '../theme';
 
@@ -10,6 +10,11 @@ export default function RegisterScreen({ navigation }) {
   const [correo, setCorreo] = useState('');
   const [password, setPassword] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [estadoCarga, setEstadoCarga] = useState('');
+
+  useEffect(() => {
+    warmUpBackend().catch(() => {});
+  }, []);
 
   const handleRegister = async () => {
     if (!nombre.trim() || !correo.trim() || !password) {
@@ -18,12 +23,21 @@ export default function RegisterScreen({ navigation }) {
     }
 
     setCargando(true);
+    setEstadoCarga('Conectando con el restaurante…');
+    let requestTimeout;
     try {
+      await warmUpBackend();
+      setEstadoCarga('Creando tu cuenta…');
+      const controller = new AbortController();
+      requestTimeout = setTimeout(() => controller.abort(), 45000);
       const response = await fetch(`${API_URL}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: nombre.trim(), email: correo.trim(), password }),
+        signal: controller.signal,
       });
+      clearTimeout(requestTimeout);
+      requestTimeout = undefined;
       const text = await response.text();
       let data;
       try {
@@ -48,9 +62,15 @@ export default function RegisterScreen({ navigation }) {
       navigation.reset({ index: 0, routes: [{ name: 'Inicio', params: { user: data.user, token: data.token } }] });
     } catch (error) {
       console.error(error);
-      Alert.alert('Sin conexión', `No se pudo conectar con el servidor en ${API_URL}. Comprueba que el teléfono esté en la misma red Wi-Fi y que el firewall permita el puerto 3000.`);
+      if (error.name === 'AbortError') {
+        Alert.alert('El servidor está tardando', 'La solicitud superó el tiempo de espera. Espera unos segundos y vuelve a intentarlo.');
+      } else {
+        Alert.alert('Sin conexión', `No se pudo conectar con el restaurante en ${API_URL}. Comprueba tu conexión a internet e inténtalo de nuevo.`);
+      }
     } finally {
+      clearTimeout(requestTimeout);
       setCargando(false);
+      setEstadoCarga('');
     }
   };
 
@@ -66,7 +86,7 @@ export default function RegisterScreen({ navigation }) {
         <TextInput style={styles.input} placeholder="nombre@correo.com" placeholderTextColor={colors.muted} keyboardType="email-address" autoCapitalize="none" value={correo} onChangeText={setCorreo} />
         <Text style={styles.label}>CONTRASEÑA</Text>
         <TextInput style={styles.input} placeholder="Crea una contraseña" placeholderTextColor={colors.muted} secureTextEntry value={password} onChangeText={setPassword} />
-        <Pressable style={[styles.button, cargando && styles.buttonDisabled]} disabled={cargando} onPress={handleRegister}><Text style={styles.buttonText}>{cargando ? 'Creando…' : 'Crear cuenta'}</Text><Text style={styles.arrow}>→</Text></Pressable>
+        <Pressable style={[styles.button, cargando && styles.buttonDisabled]} disabled={cargando} onPress={handleRegister}><Text style={styles.buttonText}>{cargando ? estadoCarga : 'Crear cuenta'}</Text><Text style={styles.arrow}>→</Text></Pressable>
       </View>
       <Pressable style={styles.linkButton} onPress={() => navigation.navigate('Login')}><Text style={styles.linkText}>¿Ya tienes cuenta? <Text style={styles.linkStrong}>Inicia sesión</Text></Text></Pressable>
     </KeyboardAvoidingView>

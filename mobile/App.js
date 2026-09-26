@@ -3,6 +3,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { borrarSesionLocal, initDB, obtenerSesionLocal } from './src/database/sqlite';
 import { sincronizarConBackend } from './src/api/sync';
+import { warmUpBackend } from './src/api/config';
 import AppNavigator from './src/navigation/AppNavigator';
 import { colors } from './src/theme';
 
@@ -17,6 +18,7 @@ export default function App() {
       const sesionLocal = await obtenerSesionLocal();
       if (!activo) return;
       setSesion(sesionLocal);
+      warmUpBackend().catch(() => {});
       sincronizarConBackend();
       setTimeout(() => setIniciando(false), 1100);
     };
