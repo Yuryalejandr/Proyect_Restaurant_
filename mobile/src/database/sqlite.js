@@ -84,6 +84,11 @@ export const marcarComoSincronizados = async () => {
   await db.runAsync('UPDATE reservas_local SET sincronizado = 1;');
 };
 
+export const marcarReservaComoSincronizada = async (id) => {
+  const db = await getDatabase();
+  await db.runAsync('UPDATE reservas_local SET sincronizado = 1 WHERE id = ?;', id);
+};
+
 export const obtenerTodasReservasLocales = async () => {
   const db = await getDatabase();
   return db.getAllAsync('SELECT * FROM reservas_local ORDER BY fecha ASC, hora ASC;');

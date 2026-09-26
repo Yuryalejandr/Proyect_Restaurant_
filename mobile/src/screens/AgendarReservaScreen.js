@@ -9,8 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { guardarReservaLocal } from '../database/sqlite';
-import { sincronizarConBackend } from '../api/sync';
+import { guardarReservaLocal, marcarReservaComoSincronizada } from '../database/sqlite';
 import { colors } from '../theme';
 import { API_URL } from '../api/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -75,7 +74,27 @@ export default function AgendarReservaScreen({ route, navigation }) {
       };
 
       await guardarReservaLocal(nuevaReserva);
-      const sincronizado = await sincronizarConBackend();
+      let sincronizado = false;
+      if (token && token !== 'offline') {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 65000);
+        try {
+          const response = await fetch(`${API_URL}/reservas`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify(nuevaReserva),
+            signal: controller.signal,
+          });
+          const resultado = await response.json();
+          if (!response.ok) throw new Error(resultado.mensaje || 'El servidor no pudo guardar la reserva.');
+          await marcarReservaComoSincronizada(nuevaReserva.id);
+          sincronizado = true;
+        } catch (error) {
+          console.warn('La reserva quedó pendiente de sincronizar:', error.message);
+        } finally {
+          clearTimeout(timeout);
+        }
+      }
 
       Alert.alert(
         'Reserva confirmada',
