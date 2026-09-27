@@ -73,40 +73,47 @@ export default function AgendarReservaScreen({ route, navigation }) {
         fotoUri,
       };
 
-      await guardarReservaLocal(nuevaReserva);
-      let sincronizado = false;
-      if (token && token !== 'offline') {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 65000);
-        try {
-          const response = await fetch(`${API_URL}/reservas`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify(nuevaReserva),
-            signal: controller.signal,
-          });
-          const resultado = await response.json();
-          if (!response.ok) throw new Error(resultado.mensaje || 'El servidor no pudo guardar la reserva.');
-          await marcarReservaComoSincronizada(nuevaReserva.id);
-          sincronizado = true;
-        } catch (error) {
-          console.warn('La reserva quedó pendiente de sincronizar:', error.message);
-        } finally {
-          clearTimeout(timeout);
-        }
+      if (!token || token === 'offline') {
+        Alert.alert('Sin conexión', 'Necesitas internet e iniciar sesión para enviar la reserva al restaurante.');
+        return;
       }
 
-      Alert.alert(
-        'Reserva confirmada',
-        sincronizado
-          ? 'Tu mesa quedó guardada y sincronizada con el restaurante.'
-          : 'Tu mesa quedó guardada en el dispositivo y se sincronizará cuando haya conexión.',
-        [{ text: 'Ver mis reservas', onPress: () => navigation.replace('MisReservas', { user, token }) }]
-      );
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 65000);
+
+      try {
+        const response = await fetch(`${API_URL}/reservas`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(nuevaReserva),
+          signal: controller.signal,
+        });
+
+        const resultado = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(resultado.mensaje || `El servidor respondió con error ${response.status}.`);
+        }
+
+        Alert.alert(
+          'Reserva confirmada',
+          'Tu mesa quedó guardada directamente en el restaurante.',
+          [{ text: 'Ver mis reservas', onPress: () => navigation.replace('MisReservas', { user, token }) }]
+        );
+      } catch (error) {
+        console.error('No se pudo guardar la reserva en MySQL:', error);
+        Alert.alert(
+          'No se pudo guardar la reserva',
+          'La reserva no se envió al restaurante. Revisa tu conexión, vuelve a iniciar sesión y vuelve a intentarlo.',
+          [{ text: 'Entendido' }]
+        );
+      } finally {
+        clearTimeout(timeout);
+        setGuardando(false);
+      }
     } catch (error) {
-      console.error('No se pudo guardar la reserva:', error);
+      console.error('Error inesperado al preparar la reserva:', error);
       Alert.alert('No se pudo guardar', 'Inténtalo nuevamente.');
-    } finally {
       setGuardando(false);
     }
   };

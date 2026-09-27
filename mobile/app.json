@@ -20,7 +20,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yury_4lee.mobile"
+      "package": "com.yury_4lee.mobile",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -36,19 +39,20 @@
         }
       ],
       "expo-status-bar",
-    "expo-sqlite",
-    [
-      "expo-image-picker",
-      {
-        "photosPermission": "Permite seleccionar una foto para tu perfil.",
-        "cameraPermission": "Permite tomar una foto para tu perfil."
-      }
-    ]
+      "expo-sqlite",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite seleccionar una foto para tu perfil.",
+          "cameraPermission": "Permite tomar una foto para tu perfil."
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "2a89dbfd-08f5-42bf-ae34-641cbd9a0935"
+        "projectId": "eb5e7081-7a73-472b-9b44-4514939d869e"
       }
-    }
+    },
+    "owner": "4lee"
   }
 }
